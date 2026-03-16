@@ -6,27 +6,53 @@
   // Parse backlink rows from the Semrush table
   function parseTable() {
     const results = [];
-    // Semrush uses a data table; try multiple selectors for robustness
-    const rows = document.querySelectorAll('table tbody tr, [data-test="backlinks-table"] tbody tr, .___STableRow');
+    // Semrush uses custom div-based table with dynamic class names like ___SRow_XXXX_gg_
+    // Find all row elements by matching class pattern
+    const allDivs = document.querySelectorAll('div[class*="___SRow_"][class*="_gg_"]');
+    
+    // Filter to only data rows (inside the scroll container, not breadcrumb rows)
+    const rows = [...allDivs].filter(div => {
+      // Data rows contain links to external sites
+      const hasExternalLink = div.querySelector('a[href*="http"]');
+      // Data rows are inside a container with SContainer or SScrollArea class
+      const inTable = div.closest('div[class*="___SContainer_"], div[class*="___SScrollArea_"]');
+      return hasExternalLink && inTable;
+    });
 
     rows.forEach(row => {
-      const cells = row.querySelectorAll('td');
-      if (cells.length < 4) return;
+      // Find all child flex containers (cells)
+      const cells = row.querySelectorAll(':scope > div[class*="___"]');
+      
+      // Get the referring page URL - first external link in the row
+      const linkEl = row.querySelector('a[href*="http"]:not([href*="semrush"])');
+      const url = linkEl?.href || '';
+      
+      // Get anchor text - look for the anchor/target URL section
+      const allLinks = row.querySelectorAll('a[href*="http"]');
+      let anchor = '';
+      // The anchor text is usually in the second major link group
+      allLinks.forEach(a => {
+        const text = a.textContent?.trim();
+        if (text && !text.includes('/') && text.length > 1 && text.length < 200) {
+          anchor = text;
+        }
+      });
 
-      // Extract data from cells — Semrush table typically has:
-      // [Referring Page] [Anchor Text] [Authority Score] [Follow/Nofollow] ...
-      const linkEl = cells[0]?.querySelector('a[href]');
-      const url = linkEl?.href || linkEl?.textContent?.trim() || '';
-      const anchor = cells[1]?.textContent?.trim() || '';
-
-      // Authority score — look for numeric value
+      // Authority score — find standalone numbers (AS score is typically 1-100)
       let authority = 0;
-      for (const cell of cells) {
-        const num = parseInt(cell.textContent?.trim());
-        if (num > 0 && num <= 100) { authority = num; break; }
+      const textNodes = row.querySelectorAll('span, div');
+      for (const node of textNodes) {
+        const text = node.textContent?.trim();
+        if (/^\d{1,3}$/.test(text)) {
+          const num = parseInt(text);
+          if (num > 0 && num <= 100) {
+            authority = num;
+            break;
+          }
+        }
       }
 
-      // Follow type
+      // Follow type — check for nofollow/ugc/sponsored badges
       const fullText = row.textContent || '';
       const linkType = /nofollow/i.test(fullText) ? 'nofollow' : 'dofollow';
 
@@ -34,6 +60,28 @@
         results.push({ url: url.trim(), anchor_text: anchor, authority_score: authority, link_type: linkType });
       }
     });
+
+    // Fallback: if div-based parsing found nothing, try standard table
+    if (results.length === 0) {
+      const tableRows = document.querySelectorAll('table tbody tr');
+      tableRows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 3) return;
+        const linkEl = cells[0]?.querySelector('a[href]');
+        const url = linkEl?.href || '';
+        const anchor = cells[1]?.textContent?.trim() || '';
+        let authority = 0;
+        for (const cell of cells) {
+          const num = parseInt(cell.textContent?.trim());
+          if (num > 0 && num <= 100) { authority = num; break; }
+        }
+        const fullText = row.textContent || '';
+        const linkType = /nofollow/i.test(fullText) ? 'nofollow' : 'dofollow';
+        if (url && url.startsWith('http')) {
+          results.push({ url: url.trim(), anchor_text: anchor, authority_score: authority, link_type: linkType });
+        }
+      });
+    }
 
     return results;
   }
@@ -64,7 +112,7 @@
   // Click next page and wait for table update
   async function goNextPage() {
     const nextBtn = document.querySelector(
-      'button[aria-label="Next page"], button[data-test="next-page"], .___SPagination button:last-child, [class*="Pagination"] button:last-of-type'
+      'button[aria-label="Next page"], button[aria-label="下一页"], button[data-test="next-page"], [class*="___SPagination"] button:last-child, [class*="Pagination"] button:last-of-type'
     );
 
     if (!nextBtn || nextBtn.disabled || nextBtn.getAttribute('aria-disabled') === 'true') {
