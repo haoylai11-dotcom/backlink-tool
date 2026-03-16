@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <h1>🔗 Backlink Tool</h1>
+    <span id="status-badge" class="badge badge-idle">IDLE</span>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="dashboard">Dashboard</button>
+    <button class="tab" data-tab="domains">Domains</button>
+    <button class="tab" data-tab="backlinks">Backlinks</button>
+    <button class="tab" data-tab="comments">Comments</button>
+    <button class="tab" data-tab="settings">Settings</button>
+  </nav>
+
+  <!-- Dashboard -->
+  <div id="tab-dashboard" class="tab-content active">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-num" id="stat-domains">0</div>
+        <div class="stat-label">Domains</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="stat-commentable">0</div>
+        <div class="stat-label">Commentable</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="stat-posted">0</div>
+        <div class="stat-label">Posted</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="stat-discovered">0</div>
+        <div class="stat-label">Discovered</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="input-row">
+        <input type="text" id="seed-domain" placeholder="Enter seed domain (e.g. basketball-stars.io)">
+        <button id="btn-scrape" class="btn btn-primary">Scrape</button>
+      </div>
+      <div class="btn-row">
+        <button id="btn-detect" class="btn">Detect Comments</button>
+        <button id="btn-generate" class="btn">Generate AI</button>
+        <button id="btn-post" class="btn btn-warning">Post All</button>
+        <button id="btn-pause" class="btn btn-secondary">Pause</button>
+      </div>
+    </div>
+
+    <div class="log-section">
+      <h3>Activity Log</h3>
+      <div id="log-container"></div>
+    </div>
+  </div>
+
+  <!-- Domains -->
+  <div id="tab-domains" class="tab-content">
+    <table id="domains-table">
+      <thead><tr><th>Domain</th><th>Depth</th><th>Status</th><th>Date</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Backlinks -->
+  <div id="tab-backlinks" class="tab-content">
+    <div class="filter-row">
+      <select id="bl-filter">
+        <option value="all">All</option>
+        <option value="unchecked">Unchecked</option>
+        <option value="commentable">Commentable</option>
+        <option value="needs_login">Needs Login</option>
+        <option value="has_captcha">Has Captcha</option>
+        <option value="no_comment">No Comment</option>
+      </select>
+      <span id="bl-count">0 results</span>
+    </div>
+    <table id="backlinks-table">
+      <thead><tr><th>URL</th><th>Anchor</th><th>Type</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Comments -->
+  <div id="tab-comments" class="tab-content">
+    <table id="comments-table">
+      <thead><tr><th>URL</th><th>Comment</th><th>Status</th><th>Date</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Settings -->
+  <div id="tab-settings" class="tab-content">
+    <div class="form-group">
+      <label>LLM API Endpoint</label>
+      <input type="text" id="set-endpoint" placeholder="https://api.openai.com/v1">
+    </div>
+    <div class="form-group">
+      <label>API Key</label>
+      <input type="password" id="set-apikey" placeholder="sk-...">
+    </div>
+    <div class="form-group">
+      <label>Model</label>
+      <input type="text" id="set-model" placeholder="gpt-4o-mini" value="gpt-4o-mini">
+    </div>
+    <hr>
+    <div class="form-group">
+      <label>Your Name (for comments)</label>
+      <input type="text" id="set-name" placeholder="John">
+    </div>
+    <div class="form-group">
+      <label>Your Email</label>
+      <input type="email" id="set-email" placeholder="you@example.com">
+    </div>
+    <div class="form-group">
+      <label>Website to Promote</label>
+      <input type="url" id="set-website" placeholder="https://basketball-stars.io">
+    </div>
+    <hr>
+    <div class="form-group">
+      <label>Max Recursion Depth</label>
+      <input type="number" id="set-depth" value="2" min="1" max="5">
+    </div>
+    <div class="form-group">
+      <label>Delay Between Requests (ms)</label>
+      <input type="number" id="set-delay" value="5000" min="1000" max="30000">
+    </div>
+    <div class="btn-row">
+      <button id="btn-save" class="btn btn-primary">Save Settings</button>
+      <button id="btn-export" class="btn">Export Data</button>
+      <button id="btn-clear" class="btn btn-danger">Clear All Data</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
