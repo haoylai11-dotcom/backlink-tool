@@ -176,7 +176,8 @@ async function startScraping(domain) {
   log(`Starting scrape for domain: ${domain}`);
 
   // Find Semrush tab and send message
-  const tabs = await chrome.tabs.query({ url: 'https://www.semrush.com/*' });
+  const allTabs = await chrome.tabs.query({});
+  const tabs = allTabs.filter(t => t.url && (t.url.includes('semrush.com/analytics/backlinks') || t.url.includes('sem.3ue.com/analytics/backlinks')));
   if (tabs.length === 0) {
     log('ERROR: No Semrush tab found. Please open Semrush Backlink Analytics first.');
     return;
