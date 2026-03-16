@@ -10,7 +10,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.semrush.com/analytics/backlinks/*", "https://sem.3ue.com/analytics/backlinks/*", "https://*.semrush.com/analytics/backlinks/*"],
+      "matches": ["https://www.semrush.com/analytics/backlinks/*", "https://semrush.com/analytics/backlinks/*", "https://sem.3ue.com/analytics/backlinks/*", "https://*.semrush.com/analytics/backlinks/*"],
       "js": ["lib/db.js", "content/semrush-scraper.js"],
       "run_at": "document_idle"
     }

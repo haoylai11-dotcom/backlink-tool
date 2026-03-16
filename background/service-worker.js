@@ -183,6 +183,17 @@ async function startScraping(domain) {
     return;
   }
 
+  // Inject content script dynamically in case manifest match didn't trigger
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tabs[0].id },
+      files: ['lib/db.js', 'content/semrush-scraper.js']
+    });
+  } catch (e) {
+    log('Script injection note: ' + e.message);
+  }
+  // Give script time to initialize
+  await new Promise(r => setTimeout(r, 500));
   chrome.tabs.sendMessage(tabs[0].id, { action: 'startScraping' });
 }
 
