@@ -28,6 +28,8 @@ body { width: 520px; min-height: 400px; background: #1a1a2e; color: #e0e0e0; fon
 .input-row input { flex: 1; }
 .btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
 
+textarea { background: #0f3460; border: 1px solid #1a3a6e; color: #e0e0e0; padding: 6px 10px; border-radius: 4px; font-size: 12px; width: 100%; resize: vertical; font-family: inherit; }
+textarea:focus { outline: none; border-color: #e94560; }
 input, select { background: #0f3460; border: 1px solid #1a3a6e; color: #e0e0e0; padding: 6px 10px; border-radius: 4px; font-size: 12px; }
 input:focus, select:focus { outline: none; border-color: #e94560; }
 

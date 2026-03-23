@@ -346,10 +346,14 @@ async function generateComments() {
   for (const bl of needsComment) {
     if (Pipeline.isPaused()) break;
 
+    // Randomly pick a website from the list
+    const websites = settings.promotedWebsites || [settings.promotedWebsite || ''];
+    const website = websites[Math.floor(Math.random() * websites.length)] || '';
+
     const text = await AI.generateComment(
       bl.page_title || 'Blog Post',
       bl.page_content || '',
-      settings.promotedWebsite || '',
+      website,
       settings.apiKey || '',
       settings.apiEndpoint || '',
       settings.model || ''
@@ -361,7 +365,7 @@ async function generateComments() {
         comment_text: text,
         name_used: settings.commenterName || '',
         email_used: settings.commenterEmail || '',
-        website_url: settings.promotedWebsite || ''
+        website_url: website
       });
       log(`Generated comment for: ${bl.url}`);
     } else {

@@ -193,7 +193,7 @@ function loadSettings() {
     $('#set-model').value = s.model || 'gpt-4o-mini';
     $('#set-name').value = s.commenterName || '';
     $('#set-email').value = s.commenterEmail || '';
-    $('#set-website').value = s.promotedWebsite || '';
+    $('#set-websites').value = (s.promotedWebsites || [s.promotedWebsite || '']).filter(Boolean).join('\n');
     $('#set-depth').value = s.maxDepth || 2;
     $('#set-delay').value = s.delayMs || 5000;
   });
@@ -208,7 +208,8 @@ $('#btn-save').addEventListener('click', () => {
     model: $('#set-model').value.trim(),
     commenterName: $('#set-name').value.trim(),
     commenterEmail: $('#set-email').value.trim(),
-    promotedWebsite: $('#set-website').value.trim(),
+    promotedWebsites: $('#set-websites').value.split('\n').map(s => s.trim()).filter(Boolean),
+    promotedWebsite: $('#set-websites').value.split('\n').map(s => s.trim()).filter(Boolean)[0] || '',
     maxDepth: parseInt($('#set-depth').value) || 2,
     delayMs: parseInt($('#set-delay').value) || 5000
   };
