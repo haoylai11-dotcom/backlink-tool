@@ -12,6 +12,7 @@ $$('.tab').forEach(tab => {
     if (tab.dataset.tab === 'domains') loadDomains();
     if (tab.dataset.tab === 'backlinks') loadBacklinks();
     if (tab.dataset.tab === 'comments') loadComments();
+    if (tab.dataset.tab === 'discovered') loadDiscovered();
   });
 });
 
@@ -105,6 +106,30 @@ function loadComments() {
         </tr>
       `;
     }).join('') || '<tr><td colspan="4" style="color:#666">No comments yet</td></tr>';
+  });
+}
+
+// Load discovered sites table
+function loadDiscovered() {
+  chrome.runtime.sendMessage({ action: 'exportData' }, (data) => {
+    if (!data) return;
+    const sites = data.discovered_sites || [];
+    const blMap = {};
+    (data.backlinks || []).forEach(b => blMap[b.id] = b);
+    const tbody = $('#discovered-table tbody');
+    tbody.innerHTML = sites.map(s => {
+      const source = blMap[s.source_backlink_id];
+      let sourceHost = '';
+      try { sourceHost = new URL(source?.url || '').hostname; } catch(e) {}
+      return `
+        <tr>
+          <td>${s.domain || ''}</td>
+          <td title="${s.url}"><a href="${s.url}" target="_blank" style="color:#4fc3f7">${s.url?.substring(0, 50) || ''}</a></td>
+          <td title="${source?.url || ''}">${sourceHost}</td>
+          <td>${s.checked ? '✅' : '—'}</td>
+        </tr>
+      `;
+    }).join('') || '<tr><td colspan="4" style="color:#666">No discovered sites yet</td></tr>';
   });
 }
 
