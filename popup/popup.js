@@ -146,6 +146,8 @@ $('#btn-pause').addEventListener('click', () => {
 function loadSettings() {
   chrome.storage.local.get('settings', (data) => {
     const s = data.settings || {};
+    $('#set-ahrefs').value = s.ahrefsKey || '';
+    $('#set-mindr').value = s.minDR || 10;
     $('#set-endpoint').value = s.apiEndpoint || '';
     $('#set-apikey').value = s.apiKey || '';
     $('#set-model').value = s.model || 'gpt-4o-mini';
@@ -159,6 +161,8 @@ function loadSettings() {
 
 $('#btn-save').addEventListener('click', () => {
   const settings = {
+    ahrefsKey: $('#set-ahrefs').value.trim(),
+    minDR: parseInt($('#set-mindr').value) || 10,
     apiEndpoint: $('#set-endpoint').value.trim(),
     apiKey: $('#set-apikey').value.trim(),
     model: $('#set-model').value.trim(),

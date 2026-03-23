@@ -4,17 +4,11 @@
   "version": "1.0.0",
   "description": "Automated blog comment backlink builder with Semrush integration",
   "permissions": ["activeTab", "tabs", "storage", "scripting"],
-  "host_permissions": ["https://www.semrush.com/*", "https://sem.3ue.com/*", "<all_urls>"],
+  "host_permissions": ["https://api.ahrefs.com/*", "<all_urls>"],
   "background": {
     "service_worker": "background/service-worker.js"
   },
-  "content_scripts": [
-    {
-      "matches": ["https://www.semrush.com/analytics/backlinks/*", "https://semrush.com/analytics/backlinks/*", "https://sem.3ue.com/analytics/backlinks/*", "https://*.semrush.com/analytics/backlinks/*"],
-      "js": ["lib/db.js", "content/semrush-scraper.js"],
-      "run_at": "document_idle"
-    }
-  ],
+  "content_scripts": [],
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "Backlink Tool"

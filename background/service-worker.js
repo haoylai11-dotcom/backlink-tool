@@ -1,5 +1,5 @@
 // Background Service Worker — message routing and tab management
-importScripts('../lib/db.js', '../lib/ai.js', '../lib/pipeline.js');
+importScripts('../lib/db.js', '../lib/ai.js', '../lib/pipeline.js', '../lib/ahrefs.js');
 
 let currentDomainId = null;
 let detectQueue = [];
@@ -160,9 +160,13 @@ async function handleBacklinkData(rows, page) {
   broadcastUpdate();
 }
 
-// Start scraping a domain — tells the Semrush tab to begin
+// Start scraping a domain via Ahrefs API
 async function startScraping(domain) {
   await DB.init();
+
+  // Clean domain input
+  domain = domain.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+
   const id = await DB.addDomain({
     domain: domain,
     source_domain: null,
@@ -173,28 +177,46 @@ async function startScraping(domain) {
   });
   currentDomainId = id;
   Pipeline.setState('SCRAPING');
-  log(`Starting scrape for domain: ${domain}`);
+  log(`Fetching backlinks for ${domain} via Ahrefs API...`);
 
-  // Find Semrush tab and send message
-  const allTabs = await chrome.tabs.query({});
-  const tabs = allTabs.filter(t => t.url && (t.url.includes('semrush.com/analytics/backlinks') || t.url.includes('sem.3ue.com/analytics/backlinks')));
-  if (tabs.length === 0) {
-    log('ERROR: No Semrush tab found. Please open Semrush Backlink Analytics first.');
+  if (!settings.ahrefsKey) {
+    log('ERROR: Ahrefs API key not configured. Go to Settings.');
     return;
   }
 
-  // Inject content script dynamically in case manifest match didn't trigger
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId: tabs[0].id },
-      files: ['lib/db.js', 'content/semrush-scraper.js']
-    });
-  } catch (e) {
-    log('Script injection note: ' + e.message);
+  const minDR = parseInt(settings.minDR) || 10;
+  const result = await Ahrefs.getAllBacklinks(domain, settings.ahrefsKey, { minDR });
+
+  if (result.error) {
+    log(`API error: ${result.error}`);
   }
-  // Give script time to initialize
-  await new Promise(r => setTimeout(r, 500));
-  chrome.tabs.sendMessage(tabs[0].id, { action: 'startScraping' });
+
+  // Save backlinks to DB
+  let added = 0;
+  for (const bl of result.backlinks) {
+    try {
+      await DB.addBacklink({
+        domain_id: id,
+        url: bl.url,
+        page_title: bl.title,
+        anchor_text: bl.anchor_text,
+        link_type: bl.link_type,
+        comment_status: 'unchecked',
+        has_url_field: false,
+        form_selector: null,
+        url_field_selector: null,
+        page_content: '',
+        authority_score: bl.authority_score,
+        traffic: bl.traffic
+      });
+      added++;
+    } catch (e) { /* skip duplicates */ }
+  }
+
+  await DB.updateDomain(id, { status: 'scraped' });
+  log(`Done! Fetched ${added} backlinks (DR >= ${minDR}) for ${domain}`);
+  Pipeline.setState('IDLE');
+  broadcastUpdate();
 }
 
 // Detection queue processor
