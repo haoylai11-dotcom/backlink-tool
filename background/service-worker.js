@@ -107,6 +107,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
     }
 
+    case 'scrapeDiscovered': {
+      scrapeDiscoveredSite(msg.domain, msg.id);
+      sendResponse({ ok: true });
+      break;
+    }
+
+    case 'scrapeAllDiscovered': {
+      scrapeAllDiscovered();
+      sendResponse({ ok: true });
+      break;
+    }
+
     case 'updateDiscovered': {
       DB.updateDiscoveredSite(msg.id, { checked: msg.checked }).then(() => sendResponse({ ok: true }));
       return true;
@@ -221,6 +233,62 @@ async function startScraping(domain) {
   await DB.updateDomain(id, { status: 'scraped' });
   log(`Done! Fetched ${added} backlinks (DR >= ${minDR}) for ${domain}`);
   Pipeline.setState('IDLE');
+  broadcastUpdate();
+}
+
+// Scrape a single discovered site's backlinks
+async function scrapeDiscoveredSite(domain, discoveredId) {
+  await DB.init();
+  if (!settings.ahrefsKey) { log('ERROR: Ahrefs API key not configured.'); return; }
+
+  log(`Scraping discovered site: ${domain}`);
+  const minDR = parseInt(settings.minDR) || 10;
+
+  const id = await DB.addDomain({
+    domain, source_domain: 'discovered', depth: 1,
+    authority_score: 0, organic_traffic: 0, status: 'pending'
+  });
+
+  const result = await Ahrefs.getAllBacklinks(domain, settings.ahrefsKey, { minDR });
+  if (result.error) { log(`API error for ${domain}: ${result.error}`); }
+
+  let added = 0;
+  for (const bl of result.backlinks) {
+    try {
+      await DB.addBacklink({
+        domain_id: id, url: bl.url, page_title: bl.title,
+        anchor_text: bl.anchor_text, link_type: bl.link_type,
+        comment_status: 'unchecked', has_url_field: false,
+        form_selector: null, url_field_selector: null,
+        page_content: '', authority_score: bl.authority_score, traffic: bl.traffic
+      });
+      added++;
+    } catch (e) {}
+  }
+
+  await DB.updateDomain(id, { status: 'scraped' });
+  await DB.updateDiscoveredSite(discoveredId, { checked: true });
+  log(`${domain}: found ${added} backlinks (DR >= ${minDR})`);
+  broadcastUpdate();
+}
+
+// Scrape ALL unchecked discovered sites
+async function scrapeAllDiscovered() {
+  await DB.init();
+  const sites = await DB.getDiscoveredSites();
+  const unchecked = sites.filter(s => !s.checked);
+  log(`Scraping ${unchecked.length} discovered sites...`);
+  Pipeline.setState('SCRAPING');
+
+  for (const site of unchecked) {
+    if (Pipeline.isPaused()) break;
+    await scrapeDiscoveredSite(site.domain, site.id);
+    // Rate limit
+    await new Promise(r => setTimeout(r, 1500));
+  }
+
+  Pipeline.setState('IDLE');
+  log(`Finished scraping all discovered sites`);
   broadcastUpdate();
 }
 

@@ -145,20 +145,34 @@ function loadDiscovered() {
           <td>${s.domain || ''}</td>
           <td title="${s.url}"><a href="${s.url}" target="_blank" style="color:#4fc3f7">${s.url?.substring(0, 50) || ''}</a></td>
           <td title="${source?.url || ''}">${sourceHost}</td>
-          <td><input type="checkbox" class="discovered-check" data-id="${s.id}" ${s.checked ? 'checked' : ''}></td>
+          <td>${s.checked ? '<span style="color:#4caf50">✅ Done</span>' : `<button class="btn btn-small discovered-scrape" data-domain="${s.domain}" data-id="${s.id}">Scrape</button>`}</td>
         </tr>
       `;
     }).join('') || '<tr><td colspan="4" style="color:#666">No discovered sites yet</td></tr>';
 
-    // Bind checkbox events
-    tbody.querySelectorAll('.discovered-check').forEach(cb => {
-      cb.addEventListener('change', (e) => {
-        const id = parseInt(e.target.dataset.id);
-        chrome.runtime.sendMessage({ action: 'updateDiscovered', id, checked: e.target.checked });
+    $('#discovered-count').textContent = `${unique.length} unique sites (${unique.filter(s => s.checked).length} scraped)`;
+
+    // Bind scrape buttons
+    tbody.querySelectorAll('.discovered-scrape').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const domain = btn.dataset.domain;
+        const id = parseInt(btn.dataset.id);
+        btn.textContent = '⏳';
+        btn.disabled = true;
+        chrome.runtime.sendMessage({ action: 'scrapeDiscovered', domain, id });
       });
     });
   });
 }
+
+// Scrape All Discovered
+$('#btn-scrape-all-discovered')?.addEventListener('click', () => {
+  if (!confirm('Scrape backlinks for ALL unchecked discovered sites via Ahrefs API? This may use API credits.')) return;
+  chrome.runtime.sendMessage({ action: 'scrapeAllDiscovered' });
+  $('#btn-scrape-all-discovered').textContent = '⏳ Scraping...';
+  $('#btn-scrape-all-discovered').disabled = true;
+});
 
 // Button handlers
 $('#btn-scrape').addEventListener('click', () => {

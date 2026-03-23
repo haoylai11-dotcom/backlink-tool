@@ -107,7 +107,12 @@
   <!-- Discovered Sites -->
   <div id="tab-discovered" class="tab-content">
     <table id="discovered-table">
-      <thead><tr><th>Domain</th><th>URL</th><th>Source</th><th>Scraped ✓</th></tr></thead>
+    <div class="btn-row" style="margin-bottom:8px">
+      <button id="btn-scrape-all-discovered" class="btn btn-primary">Scrape All (Ahrefs)</button>
+      <span id="discovered-count" style="color:#888;font-size:11px;margin-left:8px"></span>
+    </div>
+    <table id="discovered-table">
+      <thead><tr><th>Domain</th><th>URL</th><th>Source</th><th>Action</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
