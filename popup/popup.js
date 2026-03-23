@@ -92,20 +92,32 @@ function loadComments() {
     const blMap = {};
     (data.backlinks || []).forEach(b => blMap[b.id] = b);
     const tbody = $('#comments-table tbody');
-    tbody.innerHTML = comments.map(c => {
+    tbody.innerHTML = comments.map((c, i) => {
       const bl = blMap[c.backlink_id];
       const url = bl?.url || 'unknown';
       let shortUrl = url;
       try { shortUrl = new URL(url).hostname; } catch(e) {}
       return `
-        <tr>
+        <tr class="comment-row" data-idx="${i}" style="cursor:pointer" title="Click to expand">
           <td title="${url}">${shortUrl}</td>
-          <td title="${c.comment_text}">${(c.comment_text || '').substring(0, 60)}...</td>
+          <td class="comment-cell" id="comment-cell-${i}">${(c.comment_text || '').substring(0, 60)}...</td>
           <td><span class="status-${c.status}">${c.status}</span></td>
           <td>${c.posted_at ? new Date(c.posted_at).toLocaleDateString() : '-'}</td>
         </tr>
+        <tr class="comment-expand" id="comment-expand-${i}" style="display:none">
+          <td colspan="4" style="white-space:pre-wrap;padding:10px;background:#0d1117;color:#ccc;font-size:12px;line-height:1.6">${(c.comment_text || '').replace(/</g, '&lt;')}\n\n<b>Website:</b> ${c.website_url || '-'}\n<b>Target:</b> <a href="${url}" target="_blank" style="color:#4fc3f7">${url}</a></td>
+        </tr>
       `;
     }).join('') || '<tr><td colspan="4" style="color:#666">No comments yet</td></tr>';
+
+    // Toggle expand on click
+    tbody.querySelectorAll('.comment-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const idx = row.dataset.idx;
+        const expand = document.getElementById(`comment-expand-${idx}`);
+        expand.style.display = expand.style.display === 'none' ? '' : 'none';
+      });
+    });
   });
 }
 
