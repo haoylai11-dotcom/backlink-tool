@@ -107,6 +107,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
     }
 
+    case 'updateDiscovered': {
+      DB.updateDiscoveredSite(msg.id, { checked: msg.checked }).then(() => sendResponse({ ok: true }));
+      return true;
+    }
+
     case 'clearAll': {
       DB.clearAll().then(() => {
         chrome.storage.local.remove('logs');
@@ -298,15 +303,27 @@ async function handleDetectResult(data, tab) {
     checked_at: Date.now()
   });
 
-  // Store discovered URLs
+  // Store discovered URLs (deduplicated by domain)
   if (data.discovered_urls?.length > 0) {
+    const existing = await DB.getDiscoveredSites();
+    const existingDomains = new Set(existing.map(s => s.domain));
+    // Also skip domains we already have as backlinks
+    const existingBacklinks = await DB.getBacklinks();
+    const blDomains = new Set();
+    existingBacklinks.forEach(b => { try { blDomains.add(new URL(b.url).hostname); } catch(e) {} });
+
+    let added = 0;
     for (const url of data.discovered_urls) {
       try {
         const domain = new URL(url).hostname;
-        await DB.addDiscoveredSite({ source_backlink_id: blId, url, domain });
+        if (!existingDomains.has(domain) && !blDomains.has(domain)) {
+          await DB.addDiscoveredSite({ source_backlink_id: blId, url, domain });
+          existingDomains.add(domain);
+          added++;
+        }
       } catch (e) { /* invalid */ }
     }
-    log(`Discovered ${data.discovered_urls.length} new sites from comments`);
+    if (added > 0) log(`Discovered ${added} new unique sites from comments`);
   }
 
   log(`${data.comment_status}: ${tab.url || 'unknown'}`);

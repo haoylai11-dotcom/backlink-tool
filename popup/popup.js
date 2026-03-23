@@ -117,7 +117,14 @@ function loadDiscovered() {
     const blMap = {};
     (data.backlinks || []).forEach(b => blMap[b.id] = b);
     const tbody = $('#discovered-table tbody');
-    tbody.innerHTML = sites.map(s => {
+    // Deduplicate by domain
+    const seen = new Set();
+    const unique = sites.filter(s => {
+      if (seen.has(s.domain)) return false;
+      seen.add(s.domain);
+      return true;
+    });
+    tbody.innerHTML = unique.map(s => {
       const source = blMap[s.source_backlink_id];
       let sourceHost = '';
       try { sourceHost = new URL(source?.url || '').hostname; } catch(e) {}
@@ -126,10 +133,18 @@ function loadDiscovered() {
           <td>${s.domain || ''}</td>
           <td title="${s.url}"><a href="${s.url}" target="_blank" style="color:#4fc3f7">${s.url?.substring(0, 50) || ''}</a></td>
           <td title="${source?.url || ''}">${sourceHost}</td>
-          <td>${s.checked ? '✅' : '—'}</td>
+          <td><input type="checkbox" class="discovered-check" data-id="${s.id}" ${s.checked ? 'checked' : ''}></td>
         </tr>
       `;
     }).join('') || '<tr><td colspan="4" style="color:#666">No discovered sites yet</td></tr>';
+
+    // Bind checkbox events
+    tbody.querySelectorAll('.discovered-check').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const id = parseInt(e.target.dataset.id);
+        chrome.runtime.sendMessage({ action: 'updateDiscovered', id, checked: e.target.checked });
+      });
+    });
   });
 }
 
