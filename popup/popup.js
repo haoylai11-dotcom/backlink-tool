@@ -229,6 +229,125 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
+// Chat functionality
+let chatHistory = [];
+
+function addChatMessage(role, text) {
+  const container = $('#chat-messages');
+  const div = document.createElement('div');
+  div.className = `chat-msg ${role}`;
+  div.textContent = text;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendChat() {
+  const input = $('#chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  addChatMessage('user', text);
+
+  // Gather current data context
+  chrome.runtime.sendMessage({ action: 'exportData' }, async (data) => {
+    if (!data) { addChatMessage('system', 'Error: could not load data'); return; }
+
+    const stats = {
+      domains: (data.domains || []).length,
+      backlinks: (data.backlinks || []).length,
+      commentable: (data.backlinks || []).filter(b => b.comment_status === 'commentable').length,
+      needs_login: (data.backlinks || []).filter(b => b.comment_status === 'needs_login').length,
+      has_captcha: (data.backlinks || []).filter(b => b.comment_status === 'has_captcha').length,
+      no_comment: (data.backlinks || []).filter(b => b.comment_status === 'no_comment').length,
+      unchecked: (data.backlinks || []).filter(b => b.comment_status === 'unchecked').length,
+      comments_posted: (data.comments || []).filter(c => c.status === 'posted').length,
+      comments_pending: (data.comments || []).filter(c => c.status === 'pending').length,
+      discovered: (data.discovered_sites || []).length
+    };
+
+    // Build top backlinks summary (top 20 by authority)
+    const topBacklinks = (data.backlinks || [])
+      .sort((a, b) => (b.authority_score || 0) - (a.authority_score || 0))
+      .slice(0, 20)
+      .map(b => `${b.url} | DR:${b.authority_score || '?'} | ${b.comment_status} | anchor:"${b.anchor_text || ''}"`)
+      .join('\n');
+
+    const systemPrompt = `You are an SEO backlink analysis assistant embedded in a Chrome extension. You have access to the user's backlink data.
+
+Current stats:
+- Domains scanned: ${stats.domains}
+- Total backlinks: ${stats.backlinks}
+- Commentable: ${stats.commentable}
+- Needs login: ${stats.needs_login}
+- Has captcha: ${stats.has_captcha}
+- No comment: ${stats.no_comment}
+- Unchecked: ${stats.unchecked}
+- Comments posted: ${stats.comments_posted}
+- Comments pending: ${stats.comments_pending}
+- Discovered sites: ${stats.discovered}
+
+Top backlinks (by Domain Rating):
+${topBacklinks || 'No backlinks yet'}
+
+Answer concisely. If asked to write comments, make them natural and relevant.`;
+
+    chatHistory.push({ role: 'user', content: text });
+
+    // Load settings for API config
+    chrome.storage.local.get('settings', async (sdata) => {
+      const s = sdata.settings || {};
+      if (!s.apiKey || !s.apiEndpoint) {
+        addChatMessage('system', 'Please configure LLM API in Settings first.');
+        return;
+      }
+
+      try {
+        const endpoint = s.apiEndpoint.replace(/\/$/, '');
+        const url = endpoint.includes('/chat/completions') ? endpoint : `${endpoint}/chat/completions`;
+
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${s.apiKey}`
+          },
+          body: JSON.stringify({
+            model: s.model || 'deepseek-chat',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...chatHistory.slice(-10)
+            ],
+            temperature: 0.7,
+            max_tokens: 500
+          })
+        });
+
+        if (!resp.ok) {
+          addChatMessage('system', `API error: ${resp.status}`);
+          return;
+        }
+
+        const result = await resp.json();
+        const reply = result.choices?.[0]?.message?.content?.trim();
+        if (reply) {
+          chatHistory.push({ role: 'assistant', content: reply });
+          addChatMessage('assistant', reply);
+        } else {
+          addChatMessage('system', 'No response from AI');
+        }
+      } catch (err) {
+        addChatMessage('system', `Error: ${err.message}`);
+      }
+    });
+  });
+}
+
+$('#btn-chat-send').addEventListener('click', sendChat);
+$('#chat-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendChat();
+});
+
 // Init
 refreshStats();
 refreshLogs();
