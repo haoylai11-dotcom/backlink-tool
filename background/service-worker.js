@@ -300,37 +300,70 @@ async function startDetecting() {
 
   await DB.init();
   const unchecked = await DB.getBacklinks({ indexName: 'comment_status', value: 'unchecked' });
-  log(`Starting detection: ${unchecked.length} URLs to check`);
+  const total = unchecked.length;
+  let checked = 0;
+  let errors = 0;
+  log(`Starting detection: ${total} URLs to check`);
 
   for (const bl of unchecked) {
     if (Pipeline.isPaused() || !isDetecting) break;
 
+    // Skip invalid URLs
     try {
-      log(`Checking: ${bl.url}`);
-      // Open tab, inject detector, wait for result
-      const tab = await chrome.tabs.create({ url: bl.url, active: false });
+      const parsed = new URL(bl.url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('not http(s)');
+    } catch (e) {
+      errors++;
+      checked++;
+      log(`[${checked}/${total}] Skipping invalid URL: ${bl.url}`);
+      await DB.updateBacklink(bl.id, { comment_status: 'no_comment', checked_at: Date.now() });
+      continue;
+    }
 
-      // Wait for page load
-      await new Promise(resolve => {
+    let tab;
+    try {
+      log(`[${checked + 1}/${total}] Checking: ${bl.url}`);
+      // Open tab, inject detector, wait for result
+      tab = await chrome.tabs.create({ url: bl.url, active: false });
+
+      // Wait for page load with 15s timeout
+      const loaded = await new Promise(resolve => {
         const listener = (tabId, info) => {
           if (tabId === tab.id && info.status === 'complete') {
             chrome.tabs.onUpdated.removeListener(listener);
-            resolve();
+            resolve(true);
           }
         };
         chrome.tabs.onUpdated.addListener(listener);
-        // Timeout after 15s
-        setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); resolve(); }, 15000);
+        setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); resolve(false); }, 15000);
       });
+
+      if (!loaded) {
+        errors++;
+        log(`[${checked + 1}/${total}] Timeout loading, skipping: ${bl.url}`);
+        await DB.updateBacklink(bl.id, { comment_status: 'no_comment', checked_at: Date.now() });
+        try { await chrome.tabs.remove(tab.id); } catch (e) { /* already closed */ }
+        checked++;
+        continue;
+      }
 
       // Store tab→backlink mapping for result handler
       await chrome.storage.local.set({ [`detect_${tab.id}`]: bl.id });
 
-      // Inject detector script
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['content/comment-detector.js']
-      });
+      // Inject detector script (catch injection failures separately)
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['content/comment-detector.js']
+        });
+      } catch (injectErr) {
+        errors++;
+        log(`[${checked + 1}/${total}] Script inject failed (${injectErr.message}), skipping: ${bl.url}`);
+        await DB.updateBacklink(bl.id, { comment_status: 'no_comment', checked_at: Date.now() });
+        try { await chrome.tabs.remove(tab.id); } catch (e) { /* already closed */ }
+        checked++;
+        continue;
+      }
 
       // Wait for result (handled by detectResult message) + delay
       await new Promise(r => setTimeout(r, 3000));
@@ -343,13 +376,17 @@ async function startDetecting() {
       await new Promise(r => setTimeout(r, delay));
 
     } catch (err) {
-      log(`Error checking ${bl.url}: ${err.message}`);
+      errors++;
+      log(`[${checked + 1}/${total}] Error checking ${bl.url}: ${err.message}`);
       await DB.updateBacklink(bl.id, { comment_status: 'no_comment', checked_at: Date.now() });
+      if (tab) { try { await chrome.tabs.remove(tab.id); } catch (e) { /* already closed */ } }
     }
+
+    checked++;
   }
 
   isDetecting = false;
-  log('Detection complete');
+  log(`Detection complete: ${checked} checked, ${errors} errors out of ${total} total`);
   broadcastUpdate();
 }
 
